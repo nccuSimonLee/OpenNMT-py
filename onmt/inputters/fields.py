@@ -1,6 +1,7 @@
 """Module for build dynamic fields."""
 from collections import Counter, defaultdict
 import torch
+from onmt.constants import DefaultTokens, BertTokens
 from onmt.utils.logging import logger
 from onmt.utils.misc import check_path
 from onmt.inputters.inputter import get_fields, _load_vocab, \
@@ -12,12 +13,25 @@ def _get_dynamic_fields(opts):
     src_nfeats = 0
     tgt_nfeats = 0
     with_align = hasattr(opts, 'lambda_align') and opts.lambda_align > 0.0
+    if opts.embedding_method == 'general':
+        pad, unk = DefaultTokens.PAD, DefaultTokens.UNK
+        bos, eos = DefaultTokens.BOS, DefaultTokens.EOS
+    elif opts.embedding_method == 'bert':
+        pad, unk = BertTokens.PAD, BertTokens.UNK
+        bos, eos = BertTokens.BOS, BertTokens.EOS
+    else:
+        raise AssertionError
     fields = get_fields('text', src_nfeats, tgt_nfeats,
                         dynamic_dict=opts.copy_attn,
                         src_truncate=opts.src_seq_length_trunc,
                         tgt_truncate=opts.tgt_seq_length_trunc,
+                        pad=pad,
+                        bos=bos,
+                        eos=eos,
+                        unk=unk,
                         with_align=with_align,
-                        data_task=opts.data_task)
+                        data_task=opts.data_task,
+                        field_type=opts.embedding_method)
 
     return fields
 

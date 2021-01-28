@@ -9,11 +9,12 @@ import torch
 from torchtext.data import Field, RawField, LabelField
 from torchtext.vocab import Vocab
 
-from onmt.constants import DefaultTokens, ModelTask
+from onmt.constants import DefaultTokens, ModelTask, BertTokens
 from onmt.inputters.text_dataset import text_fields
 from onmt.utils.logging import logger
 # backwards compatibility
 from onmt.inputters.text_dataset import _feature_tokenize  # noqa: F401
+from onmt.inputters.vocab import SpecStayPutVocab
 
 import gc
 
@@ -25,9 +26,13 @@ def _getstate(self):
 
 def _setstate(self, state):
     self.__dict__.update(state)
-    self.stoi = defaultdict(lambda: 0, self.stoi)
+    unk_index = self.stoi.get(BertTokens.UNK,
+                              self.stoi.get(DefaultTokens.UNK, 0))
+    self.stoi = defaultdict(lambda: unk_index, self.stoi)
 
 
+SpecStayPutVocab.__getstate__ = _getstate
+SpecStayPutVocab.__setstate__ = _setstate
 Vocab.__getstate__ = _getstate
 Vocab.__setstate__ = _setstate
 
@@ -91,19 +96,19 @@ def parse_align_idx(align_pharaoh):
     return flatten_align_idx
 
 
-def get_task_spec_tokens(data_task, pad, bos, eos):
+def get_task_spec_tokens(data_task, pad, bos, eos, unk):
     """
     Retrieve pad/bos/eos tokens for each data tasks
     """
     if data_task == ModelTask.SEQ2SEQ:
         return {
-            "src": {"pad": pad, "bos": None, "eos": None},
-            "tgt": {"pad": pad, "bos": bos, "eos": eos},
+            "src": {"pad": pad, "bos": None, "eos": None, "unk": unk},
+            "tgt": {"pad": pad, "bos": bos, "eos": eos, "unk": unk},
         }
     elif data_task == ModelTask.LANGUAGE_MODEL:
         return {
-            "src": {"pad": pad, "bos": bos, "eos": None},
-            "tgt": {"pad": pad, "bos": None, "eos": eos},
+            "src": {"pad": pad, "bos": bos, "eos": None, "unk": unk},
+            "tgt": {"pad": pad, "bos": None, "eos": eos, "unk": unk},
         }
     else:
         raise ValueError(f"No task specific tokens defined for {data_task}")
@@ -116,11 +121,13 @@ def get_fields(
     pad=DefaultTokens.PAD,
     bos=DefaultTokens.BOS,
     eos=DefaultTokens.EOS,
+    unk=DefaultTokens.UNK,
     dynamic_dict=False,
     with_align=False,
     src_truncate=None,
     tgt_truncate=None,
-    data_task=ModelTask.SEQ2SEQ
+    data_task=ModelTask.SEQ2SEQ,
+    field_type='general'
 ):
     """
     Args:
@@ -155,7 +162,7 @@ def get_fields(
     fields = {}
 
     fields_getters = {"text": text_fields}
-    task_spec_tokens = get_task_spec_tokens(data_task, pad, bos, eos)
+    task_spec_tokens = get_task_spec_tokens(data_task, pad, bos, eos, unk)
 
     src_field_kwargs = {
         "n_feats": n_src_feats,
@@ -163,8 +170,11 @@ def get_fields(
         "pad": task_spec_tokens["src"]["pad"],
         "bos": task_spec_tokens["src"]["bos"],
         "eos": task_spec_tokens["src"]["eos"],
+        "unk": task_spec_tokens["src"]["unk"],
         "truncate": src_truncate,
         "base_name": "src",
+        "field_type": field_type,
+        "is_target": False,
     }
     fields["src"] = fields_getters[src_data_type](**src_field_kwargs)
 
@@ -174,8 +184,11 @@ def get_fields(
         "pad": task_spec_tokens["tgt"]["pad"],
         "bos": task_spec_tokens["tgt"]["bos"],
         "eos": task_spec_tokens["tgt"]["eos"],
+        "unk": task_spec_tokens["tgt"]["unk"],
         "truncate": tgt_truncate,
         "base_name": "tgt",
+        "field_type": field_type,
+        "is_target": True,
     }
     fields["tgt"] = fields_getters["text"](**tgt_field_kwargs)
 
@@ -472,7 +485,8 @@ def _merge_field_vocabs(src_field, tgt_field, vocab_size, min_freq,
     merged = sum(
         [src_field.vocab.freqs, tgt_field.vocab.freqs], Counter()
     )
-    merged_vocab = Vocab(
+    vocab_cls = type(src_field.vocab)
+    merged_vocab = vocab_cls(
         merged, specials=all_specials,
         max_size=vocab_size, min_freq=min_freq
     )

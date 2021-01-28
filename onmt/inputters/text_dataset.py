@@ -6,6 +6,7 @@ from torchtext.data import Field, RawField
 
 from onmt.constants import DefaultTokens
 from onmt.inputters.datareader_base import DataReaderBase
+from onmt.inputters.field import BertField
 
 
 class TextDataReader(DataReaderBase):
@@ -169,9 +170,15 @@ def text_fields(**kwargs):
     pad = kwargs.get("pad", DefaultTokens.PAD)
     bos = kwargs.get("bos", DefaultTokens.BOS)
     eos = kwargs.get("eos", DefaultTokens.EOS)
+    unk = kwargs.get("unk", DefaultTokens.UNK)
     truncate = kwargs.get("truncate", None)
+    is_target = kwargs.get('is_target', False)
     fields_ = []
     feat_delim = u"￨" if n_feats > 0 else None
+    if kwargs.get("field_type", "general") == "general":
+        field_cls = Field
+    else:
+        field_cls = BertField
     for i in range(n_feats + 1):
         name = base_name + "_feat_" + str(i - 1) if i > 0 else base_name
         tokenize = partial(
@@ -180,10 +187,11 @@ def text_fields(**kwargs):
             truncate=truncate,
             feat_delim=feat_delim)
         use_len = i == 0 and include_lengths
-        feat = Field(
+        feat = field_cls(
             init_token=bos, eos_token=eos,
-            pad_token=pad, tokenize=tokenize,
-            include_lengths=use_len)
+            pad_token=pad, unk_token=unk,
+            tokenize=tokenize, include_lengths=use_len,
+            is_target=is_target)
         fields_.append((name, feat))
     assert fields_[0][0] == base_name  # sanity check
     field = TextMultiField(fields_[0][0], fields_[0][1], fields_[1:])
