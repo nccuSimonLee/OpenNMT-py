@@ -13,6 +13,14 @@ class DefaultTokens(object):
     ALIGNMENT_SEPARATOR = ' ||| '
 
 
+class BertTokens(object):
+    PAD = '[PAD]'
+    BOS = '[CLS]'
+    EOS = '[SEP]'
+    UNK = '[UNK]'
+    MASK = '[MASK]'
+
+
 class CorpusName(object):
     VALID = 'valid'
     TRAIN = 'train'
