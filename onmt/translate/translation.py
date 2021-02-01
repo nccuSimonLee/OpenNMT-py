@@ -84,7 +84,10 @@ class TranslationBuilder(object):
         # Sorting
         inds, perm = torch.sort(batch.indices)
         if self._has_text_src:
-            src = batch.src[0][:, :, 0].index_select(1, perm)
+            if isinstance(batch.src[0], list):
+                src = batch.src[0][0][:, :, 0].index_select(1, perm)
+            else:
+                src = batch.src[0][:, :, 0].index_select(1, perm)
         else:
             src = None
         tgt = batch.tgt[:, :, 0].index_select(1, perm) \

@@ -27,9 +27,11 @@ class BertField(Field):
             token_ids, lengths = tensor
         else:
             token_ids = tensor
-        att_mask = torch.where((token_ids != self.vocab.stoi[self.pad_token]),
-                               torch.tensor(1),
-                               torch.tensor(0)).float()
+        pad_id = torch.tensor(self.vocab.stoi[self.pad_token],
+                              dtype=torch.long, device=device)
+        att_mask = torch.where((token_ids != pad_id),
+                               torch.tensor(1, device=device),
+                               torch.tensor(0, device=device)).float()
         if self.include_lengths:
             if self.is_target:
                 return (token_ids, lengths)
