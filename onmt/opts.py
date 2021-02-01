@@ -168,6 +168,11 @@ def _add_dynamic_fields_opts(parser, build_vocab_only=False):
         group.add('-embeddings_type', '--embeddings_type',
                   choices=["GloVe", "word2vec"],
                   help="Type of embeddings file.")
+        group.add('-embeding_method', '--embedding_method',
+                  choices=['general', 'bert'], default='general',
+                  help="Method to embed the source sentences")
+        group.add('-bert_name_or_path', '--bert_name_or_path',
+                  default='', help="name of BERT model or path to fine-tuned BERT")  # noqa: E501
 
 
 def _add_dynamic_transform_opts(parser):

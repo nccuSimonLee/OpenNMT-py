@@ -120,11 +120,20 @@ class TextMultiField(RawField):
             # lengths: batch_size
             base_data, lengths = base_data
 
+        is_target = self.base_field.is_target
+
+        if type(self.base_field) == BertField and not is_target:
+            base_data, att_mask = base_data
+
         feats = [ff.process(batch_by_feat[i], device=device)
                  for i, (_, ff) in enumerate(self.fields[1:], 1)]
         levels = [base_data] + feats
         # data: seq_len x batch_size x len(self.fields)
         data = torch.stack(levels, 2)
+
+        if type(self.base_field) == BertField and not is_target:
+            data = [data, att_mask]
+
         if self.base_field.include_lengths:
             return data, lengths
         else:

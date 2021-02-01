@@ -41,6 +41,6 @@ class SpecStayPutVocab(Vocab):
         self.unk_index = self.stoi.get(BertTokens.UNK,
                                        self.stoi.get(DefaultTokens.UNK, 0))
         self.stoi = defaultdict(lambda: self.unk_index, self.stoi)
-        self.itos = {i: word for word, i in self.stoi.items()}
-
+        self.itos = [word for (word, cnt) in sorted(self.stoi.items(),
+                                                    key=lambda tup: tup[1])]
         self.vectors = None

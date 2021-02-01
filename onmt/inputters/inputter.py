@@ -231,9 +231,14 @@ class IterOnDevice(object):
             else torch.device('cpu')
         if curr_device != device:
             if isinstance(batch.src, tuple):
-                batch.src = tuple([_.to(device) for _ in batch.src])
+                batch.src = tuple([[__.to(device) for __ in _]
+                                   if isinstance(_, list) else _.to(device)
+                                   for _ in batch.src])
             else:
-                batch.src = batch.src.to(device)
+                if isinstance(batch.src, list):
+                    batch.src = [_.to(device) for _ in batch.src]
+                else:
+                    batch.src = batch.src.to(device)
             batch.tgt = batch.tgt.to(device)
             batch.indices = batch.indices.to(device)
             batch.alignment = batch.alignment.to(device) \

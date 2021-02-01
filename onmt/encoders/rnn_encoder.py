@@ -62,7 +62,10 @@ class RNNEncoder(EncoderBase):
 
     def forward(self, src, lengths=None):
         """See :func:`EncoderBase.forward()`"""
-        self._check_args(src, lengths)
+        if isinstance(src, list):
+            self._check_args(src[0], lengths)
+        else:
+            self._check_args(src, lengths)
 
         emb = self.embeddings(src)
         # s_len, batch, emb_dim = emb.size()

@@ -12,7 +12,7 @@ from onmt.encoders import str2enc
 
 from onmt.decoders import str2dec
 
-from onmt.modules import Embeddings, CopyGenerator
+from onmt.modules import Embeddings, CopyGenerator, BertEmbeddings
 from onmt.modules.util_class import Cast
 from onmt.utils.misc import use_gpu
 from onmt.utils.logging import logger
@@ -38,20 +38,29 @@ def build_embeddings(opt, text_field, for_encoder=True):
     freeze_word_vecs = opt.freeze_word_vecs_enc if for_encoder \
         else opt.freeze_word_vecs_dec
 
-    emb = Embeddings(
-        word_vec_size=emb_dim,
-        position_encoding=opt.position_encoding,
-        feat_merge=opt.feat_merge,
-        feat_vec_exponent=opt.feat_vec_exponent,
-        feat_vec_size=opt.feat_vec_size,
-        dropout=opt.dropout[0] if type(opt.dropout) is list else opt.dropout,
-        word_padding_idx=word_padding_idx,
-        feat_padding_idx=feat_pad_indices,
-        word_vocab_size=num_word_embeddings,
-        feat_vocab_sizes=num_feat_embeddings,
-        sparse=opt.optim == "sparseadam",
-        freeze_word_vecs=freeze_word_vecs
-    )
+    try:
+        embedding_method = opt.embedding_method
+    except AttributeError:
+        embedding_method = 'general'
+    if embedding_method == 'general' or not for_encoder:
+        emb = Embeddings(
+            word_vec_size=emb_dim,
+            position_encoding=opt.position_encoding,
+            feat_merge=opt.feat_merge,
+            feat_vec_exponent=opt.feat_vec_exponent,
+            feat_vec_size=opt.feat_vec_size,
+            dropout=opt.dropout[0] if type(opt.dropout) is list else opt.dropout,  # noqa: E501
+            word_padding_idx=word_padding_idx,
+            feat_padding_idx=feat_pad_indices,
+            word_vocab_size=num_word_embeddings,
+            feat_vocab_sizes=num_feat_embeddings,
+            sparse=opt.optim == "sparseadam",
+            freeze_word_vecs=freeze_word_vecs
+        )
+    elif embedding_method == 'bert':
+        emb = BertEmbeddings(opt.bert_name_or_path)
+    else:
+        raise AssertionError
     return emb
 
 
@@ -249,8 +258,14 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None):
                     xavier_uniform_(p)
 
         if hasattr(model, "encoder") and hasattr(model.encoder, "embeddings"):
+            if model_opt.embedding_method == 'general':
+                path_to_emb = model_opt.pre_word_vecs_enc
+            elif model_opt.embedding_method == 'bert':
+                path_to_emb = model_opt.bert_name_or_path
+            else:
+                raise AssertionError
             model.encoder.embeddings.load_pretrained_vectors(
-                model_opt.pre_word_vecs_enc)
+                path_to_emb)
         if hasattr(model.decoder, 'embeddings'):
             model.decoder.embeddings.load_pretrained_vectors(
                 model_opt.pre_word_vecs_dec)
