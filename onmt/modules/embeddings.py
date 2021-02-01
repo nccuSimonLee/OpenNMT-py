@@ -2,6 +2,8 @@
 import math
 import warnings
 
+from transformers import BertModel
+
 import torch
 import torch.nn as nn
 
@@ -385,3 +387,33 @@ def prepare_pretrained_embeddings(opt, fields):
         )
         # set the opt in place
         opt.pre_word_vecs_dec = dec_output_file
+
+
+class BertEmbeddings(nn.Module):
+    def __init__(self, name_or_path):
+        # TODO: support dropout for fine-tuning, it is supposed only freeze now
+        super().__init__()
+        self.bert = BertModel.from_pretrained(name_or_path)
+        self.embedding_size = self.bert.config.hidden_size
+        for param in self.bert.parameters():
+            param.requires_grad = False
+
+    def forward(self, source):
+        self.bert.eval()
+        # (seq_len, batch_size), (seq_len, batch_size)
+        input_ids, att_mask = source
+        assert input_ids.shape[2] == 1
+        with torch.no_grad():
+            outputs = self.bert(input_ids=input_ids.squeeze(2).transpose(0, 1),
+                                attention_mask=att_mask.transpose(0, 1))
+        # (seq_len, batch_size, hidden_size)
+        src_embeds = outputs.last_hidden_state.transpose(0, 1)
+        return src_embeds
+
+    def load_pretrained_vectors(self, emb_file):
+        """Load in pretrained embeddings.
+
+        Args:
+          emb_file (str) : path to torch serialized embeddings
+        """
+        self.__init__(emb_file)
